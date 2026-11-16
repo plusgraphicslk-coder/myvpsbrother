@@ -1,10 +1,9 @@
 name: Oracle Stack Auto Apply
 
 on:
-  schedule:
-    # සෑම විනාඩි 10කට වරක් ස්වයංක්‍රීයව Run වේ
-    - cron: '*/10 * * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [run-oci]
 
 jobs:
   apply-stack:
