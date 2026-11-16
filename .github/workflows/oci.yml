@@ -1,0 +1,48 @@
+name: Oracle Stack Auto Apply
+
+on:
+  schedule:
+    # සෑම විනාඩි 10කට වරක් ස්වයංක්‍රීයව Run වේ
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  apply-stack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup OCI CLI and Apply Stack
+        env:
+          OCI_CLI_USER: ${{ secrets.OCI_USER }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}
+          STACK_ID: ${{ secrets.OCI_STACK_ID }}
+        run: |
+          # Random delay (Rate limit මගහැරීමට)
+          sleep $((RANDOM % 60))
+
+          # OCI CLI Install කිරීම
+          curl -L -O https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh
+          chmod +x install.sh
+          ./install.sh --accept-all-defaults
+          export PATH=$PATH:/home/runner/bin
+
+          # Stack Apply Job එක Run කිරීම
+          oci resource-manager job create-apply-job \
+            --stack-id "$STACK_ID" \
+            --execution-plan-strategy AUTO_APPROVED \
+            --wait-for-state SUCCEEDED \
+            --wait-for-state FAILED
+
+          # Result එක පරීක්ෂා කිරීම
+          STATE=$(oci resource-manager job list --stack-id "$STACK_ID" --limit 1 --query "data[0].\"lifecycle-state\"" --raw-output)
+          echo "Job Status: $STATE"
+
+          if [ "$STATE" == "SUCCEEDED" ]; then
+            echo "SUCCESS! Instance Created!"
+            exit 0
+          else
+            echo "Out of capacity. Will try again in 10 minutes."
+            exit 1
+          fi
